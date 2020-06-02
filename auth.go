@@ -27,7 +27,7 @@ func (c *Client) renewToken() {
 	jsonToken := make(map[string]string)
 
 	for {
-		duration := c.token.TTL - 2
+		duration := c.token.TTL - 120
 		time.Sleep(time.Second * time.Duration(duration))
 
 		url := c.address.String() + "/v1/auth/token/renew-self"
