@@ -8,6 +8,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+var (
+	renewalLoopRunning bool = false
+)
+
 // vaultAuth holds the Vault Auth response from server
 type vaultAuth struct {
 	ClientToken string   `json:"client_token"`
@@ -25,6 +29,7 @@ type vaultAuth struct {
 func (c *Client) renewToken() {
 	var vaultData vaultAuth
 	jsonToken := make(map[string]string)
+	renewalLoopRunning = true
 
 	for {
 		duration := c.token.TTL - 120
@@ -33,7 +38,7 @@ func (c *Client) renewToken() {
 		url := c.address.String() + "/v1/auth/token/renew-self"
 
 		req, _ := c.newRequest("POST", url)
-		
+
 		// Sending a payload (even empty) is required for vault to respond with the `auth` param
 		_ = req.setJSONBody(jsonToken)
 
@@ -51,6 +56,15 @@ func (c *Client) renewToken() {
 
 		if err := c.setTokenInfo(); err != nil {
 			c.setStatus("Error renewing token " + err.Error())
+
+			// Try logging in again. If that fails, crash.
+			err := c.setTokenFromAppRole()
+			if err != nil {
+				panic(err)
+			}
+
+			c.setStatus("token ready (new)")
+
 			continue
 		}
 		c.setStatus("token renewed")
@@ -92,7 +106,7 @@ func (c *Client) setTokenFromAppRole() error {
 	if err = c.setTokenInfo(); err != nil {
 		return errors.Wrap(errors.WithStack(err), errInfo())
 	}
-	if c.token.Renewable {
+	if c.token.Renewable && !renewalLoopRunning {
 		go c.renewToken()
 	}
 
