@@ -1,8 +1,8 @@
 module github.com/mhamann/vaultlib
 
 require (
-	github.com/hashicorp/go-cleanhttp v0.5.0
-	github.com/pkg/errors v0.8.1
+	github.com/hashicorp/go-cleanhttp v0.5.1
+	github.com/pkg/errors v0.9.1
 )
 
 go 1.13
