@@ -161,7 +161,7 @@ func (c *Client) setTokenInfo() error {
 	c.withLockContext(func() {
 		c.token = &tokenInfo
 		c.isAuthenticated = true
-
+		c.status = "token ready"
 	})
 	return nil
 }

@@ -115,7 +115,6 @@ func NewClient(c *Config) (*Client, error) {
 		}
 
 	}
-	cli.status = "l"
 	return &cli, nil
 }
 
