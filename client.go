@@ -115,7 +115,7 @@ func NewClient(c *Config) (*Client, error) {
 		}
 
 	}
-	cli.status = "Token ready"
+	cli.status = "l"
 	return &cli, nil
 }
 

@@ -3,6 +3,7 @@ package vaultlib
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/pkg/errors"
@@ -27,12 +28,28 @@ type vaultAuth struct {
 
 // renew the client's token, launched at client creation time as a go routine
 func (c *Client) renewToken() {
+
+	// Don't run if loop is already running
+	if renewalLoopRunning {
+		fmt.Println("Renewal loop already running. Skipping.")
+		return
+	}
+
 	var vaultData vaultAuth
 	jsonToken := make(map[string]string)
 	renewalLoopRunning = true
 
 	for {
-		duration := c.token.TTL - 120
+		// Subtract 5% from the TTL so we renew before it expires
+		duration := c.token.TTL - int(math.Floor((float64(c.token.TTL) * 0.05)))
+
+		// If token TTL is 0, then don't try renewing
+		if duration <= 0 {
+			fmt.Println("Token TTL is 0, so renewal loop would run infinitely. Skipping.")
+			renewalLoopRunning = false
+			return
+		}
+
 		time.Sleep(time.Second * time.Duration(duration))
 
 		url := c.address.String() + "/v1/auth/token/renew-self"
@@ -45,13 +62,14 @@ func (c *Client) renewToken() {
 		resp, err := req.execute()
 		if err != nil {
 			c.setStatus("Error renewing token " + err.Error())
-			continue
 		}
 
-		jsonErr := json.Unmarshal([]byte(resp.Auth), &vaultData)
-		if jsonErr != nil {
-			c.setStatus("Error renewing token " + err.Error())
-			continue
+		if err == nil {
+			jsonErr := json.Unmarshal([]byte(resp.Auth), &vaultData)
+			if jsonErr != nil {
+				c.setStatus("Error renewing token " + err.Error())
+				continue
+			}
 		}
 
 		if err := c.setTokenInfo(); err != nil {
@@ -60,6 +78,7 @@ func (c *Client) renewToken() {
 			// Try logging in again. If that fails, crash.
 			err := c.setTokenFromAppRole()
 			if err != nil {
+				renewalLoopRunning = false
 				panic(err)
 			}
 
@@ -109,6 +128,8 @@ func (c *Client) setTokenFromAppRole() error {
 	if c.token.Renewable && !renewalLoopRunning {
 		go c.renewToken()
 	}
+
+	c.setStatus("token ready")
 
 	return nil
 }

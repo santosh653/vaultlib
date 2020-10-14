@@ -9,14 +9,10 @@ import (
 	"testing"
 )
 
-var vaultRoleID, vaultSecretID, noKVRoleID, noKVSecretID string
+var vaultRoleID, vaultSecretID, noKVRoleID, noKVSecretID, longLivedRoleID, longLivedSecretID string
 
-var vaultVersion string
+var vaultVersion string = *flag.String("vaultVersion", "1.0.1", "provide vault version to be tested against")
 
-func init() {
-	flag.StringVar(&vaultVersion, "vaultVersion", "1.0.1", "provide vault version to be tested against")
-	flag.Parse()
-}
 func TestMain(m *testing.M) {
 
 	fmt.Println("Testing with Vault version", vaultVersion)
@@ -26,54 +22,58 @@ func TestMain(m *testing.M) {
 	os.Exit(ret)
 }
 
+func execCommand(name string, args ...string) ([]byte, error) {
+	cmd := exec.Command(name, args...)
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "VAULT_TOKEN=my-dev-root-vault-token")
+	cmd.Env = append(cmd.Env, "VAULT_ADDR=http://localhost:8200")
+	return cmd.Output()
+}
+
 func prepareVault() {
 	err := startVault(vaultVersion)
 	if err != nil {
 		log.Fatalf("Error in initVaultDev.sh %v", err)
 	}
-	cmd := exec.Command("./vault", "read", "-field=role_id", "auth/approle/role/my-role/role-id")
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "VAULT_TOKEN=my-dev-root-vault-token")
-	cmd.Env = append(cmd.Env, "VAULT_ADDR=http://localhost:8200")
 
-	out, err := cmd.Output()
+	out, err := execCommand("./vault", "read", "-field=role_id", "auth/approle/role/my-role/role-id")
 	if err != nil {
 		log.Fatalf("error getting role id %v %v", err, out)
 	}
 	vaultRoleID = string(out)
 
-	cmd = exec.Command("./vault", "write", "-field=secret_id", "-f", "auth/approle/role/my-role/secret-id")
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "VAULT_TOKEN=my-dev-root-vault-token")
-	cmd.Env = append(cmd.Env, "VAULT_ADDR=http://localhost:8200")
-	out, err = cmd.Output()
+	out, err = execCommand("./vault", "write", "-field=secret_id", "-f", "auth/approle/role/my-role/secret-id")
 	if err != nil {
 		log.Fatalf("error getting secret id %v", err)
 	}
 	vaultSecretID = string(out)
 
-	cmd = exec.Command("./vault", "read", "-field=role_id", "auth/approle/role/no-kv/role-id")
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "VAULT_TOKEN=my-dev-root-vault-token")
-	cmd.Env = append(cmd.Env, "VAULT_ADDR=http://localhost:8200")
-
-	out, err = cmd.Output()
+	out, err = execCommand("./vault", "read", "-field=role_id", "auth/approle/role/no-kv/role-id")
 	if err != nil {
 		log.Fatalf("error getting role id %v %v", err, out)
 	}
 	noKVRoleID = string(out)
 
-	cmd = exec.Command("./vault", "write", "-field=secret_id", "-f", "auth/approle/role/no-kv/secret-id")
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "VAULT_TOKEN=my-dev-root-vault-token")
-	cmd.Env = append(cmd.Env, "VAULT_ADDR=http://localhost:8200")
-	out, err = cmd.Output()
+	out, err = execCommand("./vault", "write", "-field=secret_id", "-f", "auth/approle/role/no-kv/secret-id")
 	if err != nil {
 		log.Fatalf("error getting secret id %v", err)
 	}
 	noKVSecretID = string(out)
-	os.Unsetenv("VAULT_TOKEN")
 
+	out, err = execCommand("./vault", "read", "-field=role_id", "auth/approle/role/long-lived/role-id")
+	if err != nil {
+		log.Fatalf("error getting role id %v %v", err, out)
+	}
+	longLivedRoleID = string(out)
+
+	out, err = execCommand("./vault", "write", "-field=secret_id", "-f", "auth/approle/role/long-lived/secret-id")
+	if err != nil {
+		log.Fatalf("error getting secret id %v", err)
+	}
+	longLivedSecretID = string(out)
+
+	os.Unsetenv("VAULT_TOKEN")
+	fmt.Println("Vault initialized successfully")
 }
 
 func startVault(version string) error {

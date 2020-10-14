@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestVaultClient_setTokenFromAppRole(t *testing.T) {
@@ -64,8 +67,29 @@ func TestVaultClient_setTokenFromAppRole(t *testing.T) {
 			}
 			if err := c.setTokenFromAppRole(); (err != nil) != tt.wantErr {
 				t.Errorf("Client.setTokenFromAppRole() error = %v, wantErr %v", c.token.ID, tt.fields.Token)
-				//err, tt.wantErr)
 			}
 		})
 	}
+
+	// Renewal test
+	t.Run("hardRenewal", func(t *testing.T) {
+		c := &Client{
+			address:            rightURL,
+			httpClient:         htCli,
+			appRoleCredentials: &AppRoleCredentials{RoleID: longLivedRoleID, SecretID: longLivedSecretID},
+			token:              &VaultTokenInfo{ID: "good-token", Renewable: true},
+			status:             "",
+		}
+
+		// Initial login
+		err := c.setTokenFromAppRole()
+
+		assert.Nil(t, err, "Initial login failed")
+		assert.Equalf(t, "token ready", c.GetStatus(), "Token init failure")
+
+		// Wait for refresh cycle
+		time.Sleep(time.Second * time.Duration(c.token.TTL))
+
+		assert.Equal(t, "token ready (new)", c.GetStatus(), "Token renewal mismatch")
+	})
 }

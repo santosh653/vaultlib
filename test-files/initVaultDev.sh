@@ -1,13 +1,20 @@
 #!/bin/bash
+set -x
 export VAULT_ADDR=http://localhost:8200
 export VAULT_TOKEN=my-dev-root-vault-token
 export VAULT_VERSION=${1:-1.0.1}
 
 CURRENT_VAULT=`./vault version | cut -d'v' -f2 | cut -d' ' -f1`
 if [ "$CURRENT_VAULT" != "$VAULT_VERSION" ]; then
+    unameOut="$(uname -s)"
+    case "${unameOut}" in
+        Linux*)     ARCH=linux;;
+        Darwin*)    ARCH=darwin;;
+        *)          ARCH="UNKNOWN:${unameOut}"
+    esac
     rm -rf ./vault
-    curl -kO https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip
-    unzip vault_${VAULT_VERSION}_linux_amd64.zip
+    curl -kO https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_${ARCH}_amd64.zip
+    unzip vault_${VAULT_VERSION}_${ARCH}_amd64.zip
 fi
 
 ./vault server -dev -dev-root-token-id ${VAULT_TOKEN}  > /tmp/vaultdev.log &
@@ -35,5 +42,6 @@ sleep 5
 #./vault write auth/approle/role/my-role policies=VaultDevAdmin secret_id_ttl=100m token_num_uses=100 token_ttl=100m token_max_ttl=300m secret_id_num_uses=40 >> /tmp/vaultdev.log
 ./vault write auth/approle/role/my-role policies=VaultDevAdmin token_num_uses=100 token_ttl=10s token_max_ttl=300m secret_id_num_uses=40 >> /tmp/vaultdev.log
 ./vault write auth/approle/role/no-kv policies=VaultNoKV token_num_uses=2 token_ttl=30m token_max_ttl=300m secret_id_num_uses=40 >> /tmp/vaultdev.log
+./vault write auth/approle/role/long-lived policies=VaultDevAdmin token_num_uses=2 token_ttl=30s token_max_ttl=300m secret_id_num_uses=40 >> /tmp/vaultdev.log
 
 unset VAULT_TOKEN
